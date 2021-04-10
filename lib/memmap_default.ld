@@ -23,12 +23,15 @@
 
 MEMORY
 {
-    FLASH(rx) : ORIGIN = 0x10000000, LENGTH = 2044k /* 2048 - 4K for EEPROM */
+    FLASH(rx) : ORIGIN = 0x10000000, LENGTH = __FLASH_LENGTH__
     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 256k
     SCRATCH_X(rwx) : ORIGIN = 0x20040000, LENGTH = 4k
     SCRATCH_Y(rwx) : ORIGIN = 0x20041000, LENGTH = 4k
 }
-PROVIDE ( _EEPROM_start = 0x101FF000 );
+PROVIDE ( _EEPROM_start = __EEPROM_START__ );
+PROVIDE ( _FS_start     = __FS_START__ );
+PROVIDE ( _FS_end       = __FS_END__ );
+
 
 ENTRY(_entry_point)
 
@@ -36,7 +39,7 @@ SECTIONS
 {
     /* Second stage bootloader is prepended to the image. It must be 256 bytes big
        and checksummed. It is usually built by the boot_stage2 target
-       in the Pico SDK
+       in the Raspberry Pi Pico SDK
     */
 
     .flash_begin : {
@@ -60,12 +63,11 @@ SECTIONS
     */
 
     .text : {
-        __reset_start = .;
-        KEEP (*(.reset))
-        . = ALIGN(256);
-        __reset_end = .;
-        ASSERT(__reset_end - __reset_start == 256, "ERROR: reset section should only be 256 bytes");
+        __logical_binary_start = .;
         KEEP (*(.vectors))
+        KEEP (*(.binary_info_header))
+        __binary_info_header_end = .;
+        KEEP (*(.reset))
         /* TODO revisit this now memset/memcpy/float in ROM */
         /* bit of a hack right now to exclude all floating point and time critical (e.g. memset, memcpy) code from
          * FLASH ... we will include any thing excluded here in .data below by default */
@@ -247,6 +249,8 @@ SECTIONS
 
     /* Check if data + heap + stack exceeds RAM limit */
     ASSERT(__StackLimit >= __HeapLimit, "region RAM overflowed")
+
+    ASSERT( __binary_info_header_end - __logical_binary_start <= 256, "Binary info must be in first 256 bytes of the binary")
     /* todo assert on extra code */
 }
 
